@@ -1,0 +1,80 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © jacksparrow5795
+
+//@version=4
+study("heikenashi rsi P/S", overlay=true)
+
+RSI = rsi(close,14)
+
+TSO = financial(syminfo.tickerid, "TOTAL_SHARES_OUTSTANDING", "FQ")
+TR = financial(syminfo.tickerid, "TOTAL_REVENUE", "TTM")
+MarketCap = TSO*close
+PriseSalesRatio = MarketCap/TR
+Earnings = financial(syminfo.tickerid, "EARNINGS_PER_SHARE_BASIC", "FQ")
+
+buySignalSeries = RSI[1]<RSI and RSI[1]<65 and RSI>50 and open[1]<close[1] and open<close and volume>sma(volume,20)
+sellSignalSeries = (open[1]>close[1] and open>close and volume>sma(volume,20)) or (open>close and volume>sma(volume,20) and PriseSalesRatio[1]>PriseSalesRatio)
+// sellSignalSeries = (open[1]>close[1] and open>close and volume>sma(volume,20)) or (open>close and volume>sma(volume,20) and volume[1]>sma(volume,20) and volume[1]<volume and PriseSalesRatio[1]>PriseSalesRatio)
+// sellSignalSeries = volume>sma(volume,20) and RSI[1]-RSI>2 and open>close and open-close>ATR
+// closeMeanSeries14 = sma(close,20)
+
+plotshape(buySignalSeries ,title="buy signal",style=shape.arrowup,color=color.green,location=location.belowbar)
+plotshape(sellSignalSeries ,title="sell signal",style=shape.arrowdown,color=color.red)
+
+// plot(closeMeanSeries14)
+
+var inTrade = false
+var arrOfOpenClose = array.new_int(100)
+var greenValue = 0.0
+var greenX = 0
+var greenY = 0.0
+var percentage  = 0.0
+var totalGain = 0.0
+var totalProfits = 0.0
+var totalLosses = 0.0
+var winningTrade = 0
+var loosingTrade = 0
+var numberOfUnitOfDays = 0
+var isMonthly = timeframe.ismonthly
+var isWeekly = timeframe.isweekly
+var isDaily = timeframe.isdaily
+var unitOfTime = isMonthly ? "months" : isWeekly ? "weekly" : "daily"
+var dividerForYear = isMonthly ? 12 : isWeekly ? 52 : 365
+var numberOfYears = 0.0
+// var totalDaysInTrade
+// if RSI[1]<RSI and RSI[1]<65 and RSI>50 and open[1]<close[1] and open<close and volume>sma(volume,20) and inTrade!=true
+plotshape(buySignalSeries and barstate.islast and inTrade==false ,title="buy signal",style=shape.diamond,color=color.yellow,location=location.belowbar)  
+if buySignalSeries and inTrade!=true
+    // label.new(bar_index,close,text=tostring(close))
+    array.push(arrOfOpenClose,bar_index)
+    greenValue:=close
+    greenX:=-1
+    greenY:=close
+    inTrade := true
+    
+if inTrade!=false
+    greenX:=greenX+1
+    numberOfUnitOfDays := numberOfUnitOfDays +1
+    numberOfYears:= numberOfUnitOfDays/dividerForYear
+    
+// if open[1]>close[1] and open>close and volume>sma(volume,20) and inTrade!=false
+if sellSignalSeries and inTrade!=false
+    // label.new(bar_index,close,text=tostring(close-close[array.get(arrOfOpenClose,0)]))
+    percentage := (close-greenValue)/greenValue*100
+    totalGain := totalGain + percentage
+    if percentage >= 0
+        winningTrade := winningTrade + 1
+        totalProfits:= totalProfits+percentage
+        line.new(bar_index[greenX],greenY,bar_index,close,color=color.green,width=3)
+        label.new(bar_index,close,text=tostring(percentage),textcolor=color.green,style=label.style_none,yloc=yloc.abovebar)
+    if percentage < 0
+        loosingTrade := loosingTrade + 1
+        totalLosses:= totalLosses+percentage
+        line.new(bar_index[greenX],greenY,bar_index,close,color=color.red,width=3)
+        label.new(bar_index,close,text=tostring(percentage),textcolor=color.red,style=label.style_none,yloc=yloc.belowbar)
+    inTrade := false
+    
+if barstate.islast
+    label.new(bar_index[20],close,text="P/S totalGain:"+tostring(totalGain)+"\navg Gain per year: "+tostring(totalGain/numberOfYears)+"\nwinningTrade:"+tostring(winningTrade)+"\ntotalProfits:"+tostring(totalProfits)+"\nloosingTrade:"+tostring(loosingTrade)+"\ntotalLosses:"+tostring(totalLosses)+"\nnumber of "+ unitOfTime+": " +tostring(numberOfUnitOfDays)+"\nnumber of years: " +tostring(numberOfYears),textcolor=color.white,color=totalGain>0?color.green:totalGain<0?color.red:color.gray,yloc=yloc.belowbar)
+    label.new(bar_index[20],close,text="P/S totalGain:"+tostring(totalGain)+"\navg Gain per year: "+tostring(totalGain/numberOfYears)+"\nwinningTrade:"+tostring(winningTrade)+"\ntotalProfits:"+tostring(totalProfits)+"\nloosingTrade:"+tostring(loosingTrade)+"\ntotalLosses:"+tostring(totalLosses)+"\nnumber of "+ unitOfTime+": " +tostring(numberOfUnitOfDays)+"\nnumber of years: " +tostring(numberOfYears),textcolor=color.white,color=totalGain>0?color.green:totalGain<0?color.red:color.gray,yloc=yloc.abovebar)
+    
