@@ -1,0 +1,94 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © jacksparrow5795
+// for normal stocks use weekly chart, for crypto try daily chart if needed
+//@version=4
+study("Williams %R strategy", shorttitle="%R", format=format.price, precision=2,  overlay=true, max_bars_back=5000)
+length = input(title="Length", type=input.integer, defval=13)
+src = input(close, "Source", type = input.source)
+_pr(length) =>
+	max = highest(length)
+	min = lowest(length)
+	100 * (src - max) / (max - min)
+percentR = _pr(length)
+// obPlot = hline(-20, title="Upper Band", color=#606060)
+hline(-50, title="Middle Level", linestyle=hline.style_dotted, color=#606060)
+// osPlot = hline(-80, title="Lower Band", color=#606060)
+// fill(obPlot, osPlot, title="Background", color=color.new(#9915ff, 90))
+// plot(percentR, title="%R", color=#3A6CA8, transp=0)
+
+validTime = time >= timestamp(syminfo.timezone,
+     2000, 1, 1, 0, 0)
+     
+buySignalSeries = percentR[1]<-50 and percentR>-50 and percentR<-20 and volume>sma(volume,20)
+sellSignalSeries = percentR[1]>-80 and percentR<-80 and volume>sma(volume,20)
+//  or (percentR[1]>-20 and percentR<-20)
+plotshape(buySignalSeries ,title="buy signal",style=shape.arrowup,color=color.green,location=location.belowbar)
+plotshape(sellSignalSeries ,title="sell signal",style=shape.arrowdown,color=color.red)
+
+truncate(number, decimals) =>
+    factor = pow(10, decimals)
+    int(number * factor) / factor
+
+var inTrade = false
+var arrOfOpenClose = array.new_int(100)
+var remainingCorpus = 5000.0
+var greenValue = 0.0
+var greenX = 0
+var greenY = 0.0
+var percentage  = 0.0
+var percentageWithBrokerage  = 0.0
+var totalGain = 0.0
+var totalGainWithBrokerage = 0.0
+var totalProfits = 0.0
+var totalLosses = 0.0
+var winningTrade = 0
+var loosingTrade = 0
+var numberOfUnitOfDays = 0
+var isMonthly = timeframe.ismonthly
+var isWeekly = timeframe.isweekly
+var isDaily = timeframe.isdaily
+var unitOfTime = isMonthly ? "months" : isWeekly ? "weekly" : "daily"
+var dividerForYear = isMonthly ? 12 : isWeekly ? 52 : 365
+var numberOfYears = 0.0
+// var totalDaysInTrade
+// if RSI[1]<RSI and RSI[1]<65 and RSI>50 and heikinashi_open[1]<heikinashi_close[1] and heikinashi_open<heikinashi_close and volume>sma(volume,20) and inTrade!=true
+plotshape(buySignalSeries and barstate.islast and inTrade==false ,title="buy signal",style=shape.flag,color=color.black,location=location.belowbar)  
+if buySignalSeries and inTrade!=true
+    // label.new(bar_index,heikinashi_close,text=tostring(heikinashi_close))
+    array.push(arrOfOpenClose,bar_index)
+    greenValue:=close
+    greenX:=-1
+    greenY:=close
+    inTrade := true
+    
+if inTrade!=false
+    greenX:=greenX+1
+    numberOfUnitOfDays := numberOfUnitOfDays +1
+    numberOfYears:= numberOfUnitOfDays/dividerForYear
+    
+// if heikinashi_open[1]>heikinashi_close[1] and heikinashi_open>heikinashi_close and volume>sma(volume,20) and inTrade!=false
+alertcondition(sellSignalSeries and inTrade!=false, "Sell the MATIC", "Sell the MATIC")
+if sellSignalSeries and inTrade!=false
+    // label.new(bar_index,heikinashi_close,text=tostring(heikinashi_close-heikinashi_close[array.get(arrOfOpenClose,0)]))
+    percentage := (close-greenValue)/greenValue*100
+    totalGain := totalGain + percentage
+    percentageWithBrokerage := percentage - 0.8
+    totalGainWithBrokerage := totalGainWithBrokerage + percentageWithBrokerage
+    if percentage >= 0
+        winningTrade := winningTrade + 1
+        totalProfits:= totalProfits+percentage
+        remainingCorpus := remainingCorpus + (remainingCorpus*percentageWithBrokerage)/100
+        line.new(bar_index[greenX],greenY,bar_index,close,color=color.green,width=3)
+        label.new(bar_index,close,text=tostring(truncate(remainingCorpus,2)) + "\n" + tostring(percentageWithBrokerage),textcolor=color.green,style=label.style_none,yloc=yloc.abovebar)
+    if percentage < 0
+        loosingTrade := loosingTrade + 1
+        totalLosses:= totalLosses+percentage
+        remainingCorpus := remainingCorpus + (remainingCorpus*percentageWithBrokerage)/100
+        line.new(bar_index[greenX],greenY,bar_index,close,color=color.red,width=3)
+        label.new(bar_index,close,text=tostring(truncate(remainingCorpus,2)) + "\n" + tostring(percentageWithBrokerage),textcolor=color.red,style=label.style_none,yloc=yloc.belowbar)
+    inTrade := false
+    
+if barstate.islast
+    label.new(bar_index[10],close,text="-50 -20 Williams %R strategy remainingCorpus:"+tostring(truncate(remainingCorpus,2))+"\nP/S totalGain:"+tostring(totalGain)+"\n P/S totalGainWithBrokerage:"+tostring(totalGainWithBrokerage)+"\navg Gain per year: "+tostring(totalGain/numberOfYears)+"\nwinningTrade:"+tostring(winningTrade)+"\ntotalProfits:"+tostring(totalProfits)+"\nloosingTrade:"+tostring(loosingTrade)+"\ntotalLosses:"+tostring(totalLosses)+"\nnumber of "+ unitOfTime+": " +tostring(numberOfUnitOfDays)+"\nnumber of years: " +tostring(numberOfYears),textcolor=color.white,color=remainingCorpus>5000?color.green:remainingCorpus<5000?color.red:color.gray,yloc=yloc.belowbar)
+    label.new(bar_index[10],close,text="-50 -20 Williams %R strategy remainingCorpus:"+tostring(truncate(remainingCorpus,2))+"\nP/S totalGain:"+tostring(totalGain)+"\n P/S totalGainWithBrokerage:"+tostring(totalGainWithBrokerage)+"\navg Gain per year: "+tostring(totalGain/numberOfYears)+"\nwinningTrade:"+tostring(winningTrade)+"\ntotalProfits:"+tostring(totalProfits)+"\nloosingTrade:"+tostring(loosingTrade)+"\ntotalLosses:"+tostring(totalLosses)+"\nnumber of "+ unitOfTime+": " +tostring(numberOfUnitOfDays)+"\nnumber of years: " +tostring(numberOfYears),textcolor=color.white,color=remainingCorpus>5000?color.green:remainingCorpus<5000?color.red:color.gray,yloc=yloc.abovebar)
+    
